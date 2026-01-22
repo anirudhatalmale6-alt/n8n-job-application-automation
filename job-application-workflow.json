@@ -8,29 +8,29 @@
         "width": 320,
         "color": 4
       },
-      "id": "sticky-note-main",
+      "id": "2eff21af-86a3-4ee8-8c42-cb8caf63d34e",
       "name": "Workflow Documentation",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [80, 80]
+      "position": [8224, 1312]
     },
     {
       "parameters": {},
-      "id": "manual-trigger",
+      "id": "7ba6741f-32ca-4fe8-a96f-c217ca0cda93",
       "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [260, 500]
+      "position": [8416, 1744]
     },
     {
       "parameters": {
         "jsCode": "// ============ CONFIGURATION ============\n// Edit these values to customize the workflow\n\nconst CONFIG = {\n  // Set to true for test mode (no status updates to sheet)\n  DRY_RUN_MODE: true,\n  \n  // Set to true to stop all processing\n  GLOBAL_PAUSE: false,\n  \n  // Your notification email\n  NOTIFICATION_EMAIL: 'vedkolambkaterna@gmail.com',\n  \n  // Personal details for cover letters\n  APPLICANT_NAME: 'Ved Mukund Kolambikar',\n  APPLICANT_EMAIL: 'vedmukundkolambikar@gmail.com',\n  APPLICANT_PHONE: '+49 155 10820660',\n  APPLICANT_LOCATION: 'Offenburg, Baden-Württemberg, Germany',\n  \n  // Rate limit delay in ms between jobs\n  RATE_LIMIT_DELAY_MS: 3000\n};\n\n// ============ END CONFIGURATION ============\n\nreturn { json: CONFIG };"
       },
-      "id": "config-node",
+      "id": "936c6f9f-dace-45b9-a328-2abdabad9d9f",
       "name": "CONFIG",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [480, 500],
+      "position": [8624, 1744],
       "notesInFlow": true,
       "notes": "EDIT THIS NODE to change settings.\nOpen the code and modify the CONFIG object."
     },
@@ -38,20 +38,19 @@
       "parameters": {
         "jsCode": "const config = $input.item.json;\n\nif (config.GLOBAL_PAUSE === true) {\n  // Stop processing\n  return [];\n}\n\n// Pass config forward\nreturn [{ json: config }];"
       },
-      "id": "check-global-pause",
+      "id": "81e31b38-1726-47c5-b363-202de6a37cfe",
       "name": "Check Global Pause",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [700, 500],
+      "position": [8848, 1744],
       "notesInFlow": true,
       "notes": "Stops if GLOBAL_PAUSE is true.\nReturns empty to halt workflow."
     },
     {
       "parameters": {
-        "operation": "read",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "value": "1l-6pA0TVgAdU_inM2-An4WmJuW9jerKqYlAOV50Pzyg",
           "mode": "id"
         },
         "sheetName": {
@@ -59,38 +58,43 @@
           "value": "Jobs",
           "mode": "name"
         },
-        "returnAll": true,
         "options": {}
       },
-      "id": "read-all-jobs",
+      "id": "b62e4c0e-9355-4145-a5b9-58c46ceedaa9",
       "name": "Read All Jobs from Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [920, 500],
+      "position": [9072, 1744],
       "notesInFlow": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dgA1l3ldVmtcMTdE",
+          "name": "Google Sheets account"
+        }
+      },
       "notes": "Reads all jobs from the Jobs sheet."
     },
     {
       "parameters": {
         "jsCode": "// Filter only NEW jobs and check for duplicates\nconst allJobs = $input.all();\nconst config = $('CONFIG').first().json;\n\nconst newJobs = allJobs.filter(item => {\n  const status = (item.json.status || '').trim().toUpperCase();\n  return status === 'NEW';\n});\n\nif (newJobs.length === 0) {\n  return [];\n}\n\n// Check each new job for duplicates\nconst results = [];\n\nfor (const newJob of newJobs) {\n  const company = (newJob.json.company || '').toLowerCase().trim();\n  const jobTitle = (newJob.json.job_title || '').toLowerCase().trim();\n  const jobUrl = (newJob.json.job_url || '').toLowerCase().trim();\n  const jobId = (newJob.json.job_id || '').trim();\n  \n  let isDuplicate = false;\n  let duplicateReason = '';\n  \n  for (const existingJob of allJobs) {\n    const existingId = (existingJob.json.job_id || '').trim();\n    const existingStatus = (existingJob.json.status || '').toUpperCase().trim();\n    \n    if (existingId === jobId) continue;\n    if (existingStatus !== 'APPLIED') continue;\n    \n    const existingUrl = (existingJob.json.job_url || '').toLowerCase().trim();\n    const existingCompany = (existingJob.json.company || '').toLowerCase().trim();\n    const existingTitle = (existingJob.json.job_title || '').toLowerCase().trim();\n    \n    if (jobUrl && existingUrl && jobUrl === existingUrl) {\n      isDuplicate = true;\n      duplicateReason = 'Duplicate URL - already applied (job_id: ' + existingId + ')';\n      break;\n    }\n    \n    if (company && existingCompany && company === existingCompany &&\n        jobTitle && existingTitle && jobTitle === existingTitle) {\n      isDuplicate = true;\n      duplicateReason = 'Duplicate company+role - already applied (job_id: ' + existingId + ')';\n      break;\n    }\n  }\n  \n  results.push({\n    json: {\n      ...newJob.json,\n      isDuplicate,\n      duplicateReason,\n      processedAt: new Date().toISOString(),\n      config: config\n    }\n  });\n}\n\nreturn results;"
       },
-      "id": "filter-and-dedup",
+      "id": "7fbaf76f-ff2a-4833-ad1f-c5d301e89527",
       "name": "Filter NEW & Check Duplicates",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1140, 500],
+      "position": [9296, 1744],
       "notesInFlow": true,
       "notes": "Filters only NEW jobs.\nChecks for duplicates against APPLIED entries."
     },
     {
       "parameters": {
-        "jsCode": "const job = $input.item.json;\n\nif (job.isDuplicate) {\n  // Return with SKIPPED status for duplicate handling\n  return {\n    json: {\n      ...job,\n      finalStatus: 'SKIPPED',\n      finalNotes: 'DUPLICATE: ' + job.duplicateReason\n    }\n  };\n}\n\n// Not a duplicate - pass through for processing\nreturn { json: { ...job, isDuplicate: false } };"
+        "jsCode": "const job = $input.item.json;\n\nif (job.isDuplicate) {\n  return {\n    json: {\n      ...job,\n      finalStatus: 'SKIPPED',\n      finalNotes: 'DUPLICATE: ' + job.duplicateReason\n    }\n  };\n}\n\nreturn { json: { ...job, isDuplicate: false } };"
       },
-      "id": "route-duplicates",
+      "id": "60f62a74-3f7b-4ada-bcab-c4e917e16d9d",
       "name": "Route Duplicates",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1360, 500],
+      "position": [9504, 1744],
       "notesInFlow": true,
       "notes": "Routes duplicates to status update.\nNon-duplicates continue to job fetch."
     },
@@ -117,11 +121,11 @@
         },
         "options": {}
       },
-      "id": "if-not-duplicate",
+      "id": "df865720-e478-4a8d-bda3-25f8a7dbbf73",
       "name": "If Not Duplicate",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1580, 500],
+      "position": [9728, 1744],
       "notesInFlow": true,
       "notes": "TRUE = process job\nFALSE = skip (duplicate)"
     },
@@ -129,11 +133,11 @@
       "parameters": {
         "jsCode": "// Fetch job page and extract keywords - all in one node\nconst job = $input.item.json;\nconst config = job.config;\n\nlet jobDescription = '';\nlet extractionMethod = '';\n\n// Try to fetch the job page\ntry {\n  if (job.job_url) {\n    const controller = new AbortController();\n    const timeoutId = setTimeout(() => controller.abort(), 8000);\n    const response = await fetch(job.job_url, { signal: controller.signal });\n    clearTimeout(timeoutId);\n    \n    if (response.ok) {\n      const html = await response.text();\n      if (html && html.length > 100) {\n        let text = html;\n        text = text.replace(new RegExp('<script[^>]*>[\\\\s\\\\S]*?</script>', 'gi'), '');\n        text = text.replace(new RegExp('<style[^>]*>[\\\\s\\\\S]*?</style>', 'gi'), '');\n        text = text.replace(/<[^>]+>/g, ' ');\n        text = text.replace(/&nbsp;/g, ' ');\n        text = text.replace(/&amp;/g, '&');\n        text = text.replace(/\\s+/g, ' ');\n        text = text.trim();\n        jobDescription = text.substring(0, 5000);\n        extractionMethod = 'html_fetch';\n      }\n    }\n  }\n} catch (e) {\n  // Fetch failed - use fallback\n}\n\n// Fallback if fetch didn't work\nif (!jobDescription) {\n  if (job.job_description && job.job_description.trim()) {\n    jobDescription = job.job_description.trim();\n    extractionMethod = 'manual_input';\n  } else {\n    jobDescription = 'Role: ' + (job.job_title || 'Unknown') + ' at ' + (job.company || 'Unknown') + '. Location: ' + (job.location || 'Unknown');\n    extractionMethod = 'basic_info_only';\n  }\n}\n\n// Extract keywords by simple string matching\nconst keywordList = ['python', 'javascript', 'react', 'nodejs', 'security', 'penetration', 'osint', 'vapt', 'compliance', 'iso 27001', 'gdpr', 'aws', 'azure', 'cloud', 'docker', 'kubernetes', 'machine learning', 'ml', 'ai', 'nlp', 'api', 'sql', 'linux', 'bash', 'git', 'siem', 'splunk', 'wireshark', 'nmap', 'red team', 'blue team', 'soc', 'incident'];\n\nconst descLower = jobDescription.toLowerCase();\nconst extractedKeywords = keywordList.filter(kw => descLower.includes(kw));\n\nreturn {\n  json: {\n    job_id: job.job_id,\n    job_title: job.job_title,\n    company: job.company,\n    job_url: job.job_url,\n    location: job.location,\n    source: job.source,\n    processedAt: job.processedAt,\n    jobDescription: jobDescription,\n    extractedKeywords: extractedKeywords,\n    extractionMethod: extractionMethod,\n    config: config\n  }\n};"
       },
-      "id": "fetch-and-extract",
+      "id": "ce32c3bf-81ba-4b32-af62-a451506eff02",
       "name": "Fetch & Extract Keywords",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1800, 400],
+      "position": [9952, 1632],
       "notesInFlow": true,
       "notes": "Fetches job URL, extracts text, finds keywords.\nFalls back to manual description if fetch fails."
     },
@@ -141,11 +145,11 @@
       "parameters": {
         "jsCode": "// Generate cover letter based on job keywords\nconst job = $input.item.json;\nconst config = job.config;\n\nconst applicantName = config.APPLICANT_NAME;\nconst applicantEmail = config.APPLICANT_EMAIL;\nconst applicantPhone = config.APPLICANT_PHONE;\nconst applicantLocation = config.APPLICANT_LOCATION;\n\nconst companyName = job.company || '[Company Name]';\nconst jobTitle = job.job_title || '[Position]';\nconst jobLocation = job.location || '';\nconst keywords = job.extractedKeywords || [];\n\n// Determine focus area\nlet focusArea = 'cybersecurity';\nlet relevantSkills = 'OSINT, penetration testing, security compliance, and threat intelligence';\nlet specificExp = 'conducting VAPT assessments, implementing ISMS frameworks, and building automated security tools';\n\nif (keywords.some(k => ['python', 'ml', 'machine learning', 'ai', 'nlp'].includes(k))) {\n  focusArea = 'AI/ML and security';\n  relevantSkills = 'Python, machine learning, NLP, and AI-driven security solutions';\n  specificExp = 'developing AI-powered security tools, RAG-based compliance systems, and ML model deployment';\n}\nif (keywords.some(k => ['compliance', 'iso 27001', 'gdpr'].includes(k))) {\n  focusArea = 'security compliance';\n  relevantSkills = 'ISO 27001, ISMS, compliance auditing, and risk assessment';\n  specificExp = 'implementing ISMS frameworks, conducting compliance audits, and ISO 27001 documentation';\n}\nif (keywords.some(k => ['osint', 'penetration', 'vapt', 'red team', 'soc', 'incident'].includes(k))) {\n  focusArea = 'offensive security';\n  relevantSkills = 'OSINT, VAPT, penetration testing, and red team operations';\n  specificExp = 'adversarial assessments, attack surface analysis, MITRE ATT&CK mapping, and threat simulation';\n}\n\nconst today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });\n\nconst coverLetter = applicantName + '\\n' + applicantLocation + '\\nEmail: ' + applicantEmail + '\\nPhone: ' + applicantPhone + '\\n\\n' + today + '\\n\\nDear Hiring Team at ' + companyName + ',\\n\\nI am writing to express my strong interest in the ' + jobTitle + ' position at ' + companyName + '. With my background in ' + focusArea + ' and hands-on experience in ' + relevantSkills + ', I am confident in my ability to contribute meaningfully to your team.\\n\\nDuring my roles at Cyber Secured India and V.I.E.H Group, I developed practical expertise in ' + specificExp + '. My academic foundation includes a Bachelors in Computer Engineering from the University of Mumbai, where my thesis focused on NLP-based text summarization with CI/CD integration.\\n\\nKey highlights of my experience include:\\n- Conducting comprehensive VAPT assessments and security audits\\n- Implementing ISMS frameworks aligned with ISO 27001 standards\\n- Developing AI-driven security tools using Python, ML models, and RAG architectures\\n- Working with cloud platforms (AWS, Azure) and security tools (Wireshark, Nmap, Splunk)\\n\\nI am particularly drawn to ' + companyName + ' because of the opportunity to apply my skills in a challenging environment while continuing to grow professionally.' + (jobLocation ? ' I am open to ' + (jobLocation.toLowerCase().includes('remote') ? 'remote work' : 'relocation to ' + jobLocation) + ' as required.' : '') + '\\n\\nI would welcome the opportunity to discuss how my background aligns with your needs. Thank you for considering my application.\\n\\nWarm regards,\\n' + applicantName;\n\nconst coverLetterVersion = 'v1_' + focusArea.replace(/[^a-z]/gi, '_') + '_' + new Date().toISOString().split('T')[0];\n\n// Determine final status based on dry run mode\nlet finalStatus = 'MANUAL REQUIRED';\nlet finalNotes = 'Cover letter ready (' + focusArea + ' focus). Keywords: ' + keywords.join(', ') + '. SUBMIT MANUALLY at: ' + (job.job_url || 'N/A');\n\nif (config.DRY_RUN_MODE === true) {\n  finalStatus = 'DRY-RUN';\n  finalNotes = '[DRY RUN] Cover letter generated (' + focusArea + ' focus). Keywords: ' + keywords.join(', ') + '. Extraction: ' + job.extractionMethod;\n}\n\nreturn {\n  json: {\n    job_id: job.job_id,\n    job_title: job.job_title,\n    company: job.company,\n    job_url: job.job_url,\n    location: job.location,\n    source: job.source,\n    processedAt: job.processedAt,\n    extractedKeywords: keywords,\n    extractionMethod: job.extractionMethod,\n    generatedCoverLetter: coverLetter,\n    coverLetterFocus: focusArea,\n    coverLetterVersion: coverLetterVersion,\n    finalStatus: finalStatus,\n    finalNotes: finalNotes,\n    config: config\n  }\n};"
       },
-      "id": "generate-cover-letter",
+      "id": "10296e2d-5f7a-4599-8e85-2a9cf7d2dd4c",
       "name": "Generate Cover Letter",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2240, 400],
+      "position": [10384, 1632],
       "notesInFlow": true,
       "notes": "Generates customized cover letter.\nAlso determines final status (DRY-RUN or MANUAL REQUIRED)."
     },
@@ -154,7 +158,7 @@
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "value": "1l-6pA0TVgAdU_inM2-An4WmJuW9jerKqYlAOV50Pzyg",
           "mode": "id"
         },
         "sheetName": {
@@ -169,16 +173,56 @@
             "status": "={{ $json.finalStatus }}",
             "notes": "={{ $json.finalNotes }}"
           },
-          "matchingColumns": ["job_id"]
+          "matchingColumns": ["job_id"],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
-      "id": "update-sheet-status",
+      "id": "11cf5646-9e92-4fb7-8a91-4798f58544c3",
       "name": "Update Sheet - Status",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2460, 400],
+      "position": [10608, 1632],
       "notesInFlow": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dgA1l3ldVmtcMTdE",
+          "name": "Google Sheets account"
+        }
+      },
       "notes": "Updates job status in the Jobs sheet."
     },
     {
@@ -186,7 +230,7 @@
         "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "value": "1FurIyH41-qdnHd_F5J3rQaLo6Cx-mSLl5L-wwFB4niU",
           "mode": "id"
         },
         "sheetName": {
@@ -207,16 +251,107 @@
             "extraction_method": "={{ $json.extractionMethod }}",
             "notes": "={{ $json.finalNotes }}"
           },
-          "matchingColumns": ["job_id"]
+          "matchingColumns": ["job_id"],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "job_title",
+              "displayName": "job_title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "cover_letter_version",
+              "displayName": "cover_letter_version",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "keywords_matched",
+              "displayName": "keywords_matched",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "extraction_method",
+              "displayName": "extraction_method",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
-      "id": "append-to-log",
+      "id": "1779764b-a70e-4553-a182-07014666d5c9",
       "name": "Append to Log",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2680, 400],
+      "position": [10832, 1632],
       "notesInFlow": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dgA1l3ldVmtcMTdE",
+          "name": "Google Sheets account"
+        }
+      },
       "notes": "Logs to ApplicationLog sheet."
     },
     {
@@ -227,21 +362,27 @@
         "message": "={{ 'Status: ' + $json.finalStatus + '\\nCompany: ' + $json.company + '\\nPosition: ' + $json.job_title + '\\nLocation: ' + ($json.location || 'N/A') + '\\nURL: ' + ($json.job_url || 'N/A') + '\\n\\nNotes: ' + $json.finalNotes + '\\n\\n--- Cover Letter ---\\n\\n' + $json.generatedCoverLetter }}",
         "options": {}
       },
-      "id": "send-notification",
+      "id": "40e5b6aa-467d-444d-b968-e7f1f8695318",
       "name": "Send Notification",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [2900, 400],
+      "position": [11056, 1632],
       "notesInFlow": true,
-      "notes": "Sends email notification.\nRequires Gmail OAuth2 credential.",
-      "continueOnFail": true
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "b9xy4xmQAAbeAuJR",
+          "name": "Gmail account"
+        }
+      },
+      "continueOnFail": true,
+      "notes": "Sends email notification.\nRequires Gmail OAuth2 credential."
     },
     {
       "parameters": {
         "operation": "update",
         "documentId": {
           "__rl": true,
-          "value": "YOUR_GOOGLE_SHEET_ID_HERE",
+          "value": "1l-6pA0TVgAdU_inM2-An4WmJuW9jerKqYlAOV50Pzyg",
           "mode": "id"
         },
         "sheetName": {
@@ -256,19 +397,60 @@
             "status": "={{ $json.finalStatus }}",
             "notes": "={{ $json.finalNotes }}"
           },
-          "matchingColumns": ["job_id"]
+          "matchingColumns": ["job_id"],
+          "schema": [
+            {
+              "id": "job_id",
+              "displayName": "job_id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "notes",
+              "displayName": "notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       },
-      "id": "update-duplicate-status",
+      "id": "27bd80ee-198c-4cf1-a522-0ed9afd7431b",
       "name": "Update Duplicate Status",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1800, 650],
+      "position": [9952, 1888],
       "notesInFlow": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "dgA1l3ldVmtcMTdE",
+          "name": "Google Sheets account"
+        }
+      },
       "notes": "Marks duplicate jobs as SKIPPED in sheet."
     }
   ],
+  "pinData": {},
   "connections": {
     "Manual Trigger": {
       "main": [
@@ -399,9 +581,15 @@
       ]
     }
   },
+  "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "pinData": {},
+  "versionId": "94c0b0e5-b3b8-42e7-9ab2-febe89c8d65f",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f6f2f759c0d08b36d61203cab33ca26ecad69726a58eaf867b2edeb7809eb0f3"
+  },
+  "id": "YGtFhQPP5vtS5okq944Rf",
   "tags": []
 }
