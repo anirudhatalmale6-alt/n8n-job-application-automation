@@ -127,38 +127,15 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "={{ $json.job_url }}",
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "text"
-            }
-          },
-          "timeout": 8000
-        }
+        "jsCode": "// Fetch job page and extract keywords - all in one node\nconst job = $input.item.json;\nconst config = job.config;\n\nlet jobDescription = '';\nlet extractionMethod = '';\n\n// Try to fetch the job page\ntry {\n  if (job.job_url) {\n    const controller = new AbortController();\n    const timeoutId = setTimeout(() => controller.abort(), 8000);\n    const response = await fetch(job.job_url, { signal: controller.signal });\n    clearTimeout(timeoutId);\n    \n    if (response.ok) {\n      const html = await response.text();\n      if (html && html.length > 100) {\n        let text = html;\n        text = text.replace(new RegExp('<script[^>]*>[\\\\s\\\\S]*?</script>', 'gi'), '');\n        text = text.replace(new RegExp('<style[^>]*>[\\\\s\\\\S]*?</style>', 'gi'), '');\n        text = text.replace(/<[^>]+>/g, ' ');\n        text = text.replace(/&nbsp;/g, ' ');\n        text = text.replace(/&amp;/g, '&');\n        text = text.replace(/\\s+/g, ' ');\n        text = text.trim();\n        jobDescription = text.substring(0, 5000);\n        extractionMethod = 'html_fetch';\n      }\n    }\n  }\n} catch (e) {\n  // Fetch failed - use fallback\n}\n\n// Fallback if fetch didn't work\nif (!jobDescription) {\n  if (job.job_description && job.job_description.trim()) {\n    jobDescription = job.job_description.trim();\n    extractionMethod = 'manual_input';\n  } else {\n    jobDescription = 'Role: ' + (job.job_title || 'Unknown') + ' at ' + (job.company || 'Unknown') + '. Location: ' + (job.location || 'Unknown');\n    extractionMethod = 'basic_info_only';\n  }\n}\n\n// Extract keywords by simple string matching\nconst keywordList = ['python', 'javascript', 'react', 'nodejs', 'security', 'penetration', 'osint', 'vapt', 'compliance', 'iso 27001', 'gdpr', 'aws', 'azure', 'cloud', 'docker', 'kubernetes', 'machine learning', 'ml', 'ai', 'nlp', 'api', 'sql', 'linux', 'bash', 'git', 'siem', 'splunk', 'wireshark', 'nmap', 'red team', 'blue team', 'soc', 'incident'];\n\nconst descLower = jobDescription.toLowerCase();\nconst extractedKeywords = keywordList.filter(kw => descLower.includes(kw));\n\nreturn {\n  json: {\n    job_id: job.job_id,\n    job_title: job.job_title,\n    company: job.company,\n    job_url: job.job_url,\n    location: job.location,\n    source: job.source,\n    processedAt: job.processedAt,\n    jobDescription: jobDescription,\n    extractedKeywords: extractedKeywords,\n    extractionMethod: extractionMethod,\n    config: config\n  }\n};"
       },
-      "id": "fetch-job-page",
-      "name": "Fetch Job Page",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1800, 400],
-      "notesInFlow": true,
-      "notes": "Fetches job page HTML. 8s timeout.\nContinues even if fetch fails.",
-      "continueOnFail": true,
-      "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "jsCode": "// Extract job description and keywords from fetched page\nconst input = $input.item.json;\n\n// Get original job data from before HTTP request\nconst routeNode = $('Route Duplicates').item.json;\nconst config = routeNode.config;\n\nlet jobDescription = '';\nlet extractionMethod = '';\n\n// Check if HTTP request returned data\nconst httpData = input.data || input.body || '';\nconst hasError = input.error || !httpData || (typeof httpData === 'string' && httpData.length < 100);\n\nif (!hasError && typeof httpData === 'string') {\n  // Remove script and style tags, then strip HTML\n  let text = httpData;\n  text = text.replace(new RegExp('<script[^>]*>[\\\\s\\\\S]*?</script>', 'gi'), '');\n  text = text.replace(new RegExp('<style[^>]*>[\\\\s\\\\S]*?</style>', 'gi'), '');\n  text = text.replace(/<[^>]+>/g, ' ');\n  text = text.replace(/&nbsp;/g, ' ');\n  text = text.replace(/&amp;/g, '&');\n  text = text.replace(/\\s+/g, ' ');\n  text = text.trim();\n  jobDescription = text.substring(0, 5000);\n  extractionMethod = 'html_fetch';\n} else if (routeNode.job_description && routeNode.job_description.trim()) {\n  jobDescription = routeNode.job_description.trim();\n  extractionMethod = 'manual_input';\n} else {\n  jobDescription = 'Role: ' + (routeNode.job_title || 'Unknown') + ' at ' + (routeNode.company || 'Unknown') + '. Location: ' + (routeNode.location || 'Unknown');\n  extractionMethod = 'basic_info_only';\n}\n\n// Extract keywords\nconst keywordList = ['python', 'javascript', 'react', 'nodejs', 'security', 'penetration', 'osint', 'vapt', 'compliance', 'iso 27001', 'gdpr', 'aws', 'azure', 'cloud', 'docker', 'kubernetes', 'machine learning', 'ml', 'ai', 'nlp', 'api', 'sql', 'linux', 'bash', 'git', 'siem', 'splunk', 'wireshark', 'nmap', 'red team', 'blue team', 'soc', 'incident'];\n\nconst descLower = jobDescription.toLowerCase();\nconst extractedKeywords = keywordList.filter(kw => descLower.includes(kw));\n\nreturn {\n  json: {\n    job_id: routeNode.job_id,\n    job_title: routeNode.job_title,\n    company: routeNode.company,\n    job_url: routeNode.job_url,\n    location: routeNode.location,\n    source: routeNode.source,\n    processedAt: routeNode.processedAt,\n    jobDescription: jobDescription,\n    extractedKeywords: extractedKeywords,\n    extractionMethod: extractionMethod,\n    config: config\n  }\n};"
-      },
-      "id": "extract-job-info",
-      "name": "Extract Job Info & Keywords",
+      "id": "fetch-and-extract",
+      "name": "Fetch & Extract Keywords",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2020, 400],
+      "position": [1800, 400],
       "notesInFlow": true,
-      "notes": "Parses HTML or uses fallback.\nExtracts keywords for cover letter."
+      "notes": "Fetches job URL, extracts text, finds keywords.\nFalls back to manual description if fetch fails."
     },
     {
       "parameters": {
@@ -363,7 +340,7 @@
       "main": [
         [
           {
-            "node": "Fetch Job Page",
+            "node": "Fetch & Extract Keywords",
             "type": "main",
             "index": 0
           }
@@ -377,18 +354,7 @@
         ]
       ]
     },
-    "Fetch Job Page": {
-      "main": [
-        [
-          {
-            "node": "Extract Job Info & Keywords",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Extract Job Info & Keywords": {
+    "Fetch & Extract Keywords": {
       "main": [
         [
           {
