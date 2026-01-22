@@ -3,8 +3,8 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Job Application Automation System v1\n\n**Features:**\n- Manual trigger OR Google Sheet trigger\n- Job description extraction\n- Cover letter generation from template\n- Duplicate detection\n- Dry-run mode\n- Status logging\n- Email notifications\n\n**How to use:**\n1. Add new job entry to Google Sheet with status 'NEW'\n2. Click 'Test Workflow' for manual run, or activate for auto polling\n3. Check status column for results\n\n**Config node controls:**\n- DRY_RUN_MODE: true/false\n- GLOBAL_PAUSE: true/false",
-        "height": 380,
+        "content": "## Job Application Automation System v1\n\n**How to use:**\n1. Add job to Google Sheet with status 'NEW'\n2. Click 'Execute Workflow' to run\n3. Check status column for results\n\n**Config:**\n- Edit the 'CONFIG' code node to change settings\n- DRY_RUN_MODE / GLOBAL_PAUSE / personal details",
+        "height": 300,
         "width": 320,
         "color": 4
       },
@@ -15,66 +15,36 @@
       "position": [80, 80]
     },
     {
-      "parameters": {
-        "values": {
-          "boolean": [
-            {
-              "name": "DRY_RUN_MODE",
-              "value": true
-            },
-            {
-              "name": "GLOBAL_PAUSE",
-              "value": false
-            }
-          ],
-          "string": [
-            {
-              "name": "NOTIFICATION_EMAIL",
-              "value": "your-email@example.com"
-            },
-            {
-              "name": "APPLICANT_NAME",
-              "value": "Ved Mukund Kolambikar"
-            },
-            {
-              "name": "APPLICANT_EMAIL",
-              "value": "vedmukundkolambikar@gmail.com"
-            },
-            {
-              "name": "APPLICANT_PHONE",
-              "value": "+49 155 10820660"
-            },
-            {
-              "name": "APPLICANT_LOCATION",
-              "value": "Offenburg, Baden-Württemberg, Germany"
-            }
-          ],
-          "number": [
-            {
-              "name": "RATE_LIMIT_DELAY_MS",
-              "value": 3000
-            }
-          ]
-        },
-        "options": {}
-      },
-      "id": "config-node",
-      "name": "CONFIG - Edit Settings Here",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [480, 300],
-      "notesInFlow": true,
-      "notes": "EDIT THIS NODE to configure:\n- DRY_RUN_MODE: Set to false for live mode\n- GLOBAL_PAUSE: Set to true to stop all processing\n- NOTIFICATION_EMAIL: Your email for alerts\n- Personal details for cover letters"
-    },
-    {
       "parameters": {},
       "id": "manual-trigger",
-      "name": "Manual Trigger - Click to Test",
+      "name": "Manual Trigger",
       "type": "n8n-nodes-base.manualTrigger",
       "typeVersion": 1,
-      "position": [260, 500],
+      "position": [260, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ============ CONFIGURATION ============\n// Edit these values to customize the workflow\n\nconst CONFIG = {\n  // Set to true for test mode (no status updates to sheet)\n  DRY_RUN_MODE: true,\n  \n  // Set to true to stop all processing\n  GLOBAL_PAUSE: false,\n  \n  // Your notification email\n  NOTIFICATION_EMAIL: 'vedkolambkaterna@gmail.com',\n  \n  // Personal details for cover letters\n  APPLICANT_NAME: 'Ved Mukund Kolambikar',\n  APPLICANT_EMAIL: 'vedmukundkolambikar@gmail.com',\n  APPLICANT_PHONE: '+49 155 10820660',\n  APPLICANT_LOCATION: 'Offenburg, Baden-Württemberg, Germany',\n  \n  // Rate limit delay in ms between jobs\n  RATE_LIMIT_DELAY_MS: 3000\n};\n\n// ============ END CONFIGURATION ============\n\nreturn { json: CONFIG };"
+      },
+      "id": "config-node",
+      "name": "CONFIG",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [480, 500],
       "notesInFlow": true,
-      "notes": "Use this to manually test the workflow.\nClick 'Execute Workflow' to run once."
+      "notes": "EDIT THIS NODE to change settings.\nOpen the code and modify the CONFIG object."
+    },
+    {
+      "parameters": {
+        "jsCode": "const config = $input.item.json;\n\nif (config.GLOBAL_PAUSE === true) {\n  // Stop processing\n  return [];\n}\n\n// Pass config forward\nreturn [{ json: config }];"
+      },
+      "id": "check-global-pause",
+      "name": "Check Global Pause",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [700, 500],
+      "notesInFlow": true,
+      "notes": "Stops if GLOBAL_PAUSE is true.\nReturns empty to halt workflow."
     },
     {
       "parameters": {
@@ -96,112 +66,49 @@
       "name": "Read All Jobs from Sheet",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [480, 500],
+      "position": [920, 500],
       "notesInFlow": true,
-      "notes": "Reads all jobs from the sheet.\nWorks with both manual trigger and scheduled trigger."
+      "notes": "Reads all jobs from the Jobs sheet."
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter only NEW jobs and check for duplicates\nconst allJobs = $input.all();\nconst config = $('CONFIG').first().json;\n\nconst newJobs = allJobs.filter(item => {\n  const status = (item.json.status || '').trim().toUpperCase();\n  return status === 'NEW';\n});\n\nif (newJobs.length === 0) {\n  return [];\n}\n\n// Check each new job for duplicates\nconst results = [];\n\nfor (const newJob of newJobs) {\n  const company = (newJob.json.company || '').toLowerCase().trim();\n  const jobTitle = (newJob.json.job_title || '').toLowerCase().trim();\n  const jobUrl = (newJob.json.job_url || '').toLowerCase().trim();\n  const jobId = (newJob.json.job_id || '').trim();\n  \n  let isDuplicate = false;\n  let duplicateReason = '';\n  \n  for (const existingJob of allJobs) {\n    const existingId = (existingJob.json.job_id || '').trim();\n    const existingStatus = (existingJob.json.status || '').toUpperCase().trim();\n    \n    if (existingId === jobId) continue;\n    if (existingStatus !== 'APPLIED') continue;\n    \n    const existingUrl = (existingJob.json.job_url || '').toLowerCase().trim();\n    const existingCompany = (existingJob.json.company || '').toLowerCase().trim();\n    const existingTitle = (existingJob.json.job_title || '').toLowerCase().trim();\n    \n    if (jobUrl && existingUrl && jobUrl === existingUrl) {\n      isDuplicate = true;\n      duplicateReason = 'Duplicate URL - already applied (job_id: ' + existingId + ')';\n      break;\n    }\n    \n    if (company && existingCompany && company === existingCompany &&\n        jobTitle && existingTitle && jobTitle === existingTitle) {\n      isDuplicate = true;\n      duplicateReason = 'Duplicate company+role - already applied (job_id: ' + existingId + ')';\n      break;\n    }\n  }\n  \n  results.push({\n    json: {\n      ...newJob.json,\n      isDuplicate,\n      duplicateReason,\n      processedAt: new Date().toISOString(),\n      config: config\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "filter-and-dedup",
+      "name": "Filter NEW & Check Duplicates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 500],
+      "notesInFlow": true,
+      "notes": "Filters only NEW jobs.\nChecks for duplicates against APPLIED entries."
+    },
+    {
+      "parameters": {
+        "jsCode": "const job = $input.item.json;\n\nif (job.isDuplicate) {\n  // Return with SKIPPED status for duplicate handling\n  return {\n    json: {\n      ...job,\n      finalStatus: 'SKIPPED',\n      finalNotes: 'DUPLICATE: ' + job.duplicateReason\n    }\n  };\n}\n\n// Not a duplicate - pass through for processing\nreturn { json: { ...job, isDuplicate: false } };"
+      },
+      "id": "route-duplicates",
+      "name": "Route Duplicates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 500],
+      "notesInFlow": true,
+      "notes": "Routes duplicates to status update.\nNon-duplicates continue to job fetch."
     },
     {
       "parameters": {
         "conditions": {
           "options": {
             "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "check-pause",
-              "leftValue": "={{ $('CONFIG - Edit Settings Here').item.json.GLOBAL_PAUSE }}",
-              "rightValue": false,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "check-global-pause",
-      "name": "Check Global Pause",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [700, 500],
-      "notesInFlow": true,
-      "notes": "Checks if GLOBAL_PAUSE is false.\nIf paused, stops processing immediately."
-    },
-    {
-      "parameters": {
-        "content": "## PAUSED\nWorkflow is globally paused.\nSet GLOBAL_PAUSE to false in CONFIG node to resume.",
-        "height": 100,
-        "width": 250,
-        "color": 3
-      },
-      "id": "sticky-paused",
-      "name": "Paused Notice",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [700, 720]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": false,
             "leftValue": "",
             "typeValidation": "loose"
           },
           "conditions": [
             {
-              "id": "check-status-new",
-              "leftValue": "={{ $json.status }}",
-              "rightValue": "NEW",
+              "id": "not-dup",
+              "leftValue": "={{ $json.isDuplicate }}",
+              "rightValue": "false",
               "operator": {
                 "type": "string",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "filter-new-jobs",
-      "name": "Filter - Only NEW Status",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [920, 500],
-      "notesInFlow": true,
-      "notes": "Only process jobs with status = 'NEW'.\nSkips already processed jobs."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Duplicate Detection Logic\n// Checks if same company + job_title or URL already exists with APPLIED status\n\nconst currentJob = $input.item.json;\nconst allJobs = $('Read All Jobs from Sheet').all();\n\nconst company = (currentJob.company || '').toLowerCase().trim();\nconst jobTitle = (currentJob.job_title || '').toLowerCase().trim();\nconst jobUrl = (currentJob.job_url || '').toLowerCase().trim();\n\nlet isDuplicate = false;\nlet duplicateReason = '';\n\nfor (const job of allJobs) {\n  const existingCompany = (job.json.company || '').toLowerCase().trim();\n  const existingTitle = (job.json.job_title || '').toLowerCase().trim();\n  const existingUrl = (job.json.job_url || '').toLowerCase().trim();\n  const existingStatus = (job.json.status || '').toUpperCase().trim();\n  const existingId = (job.json.job_id || '').trim();\n  \n  // Skip the current job itself\n  if (existingId === (currentJob.job_id || '').trim()) continue;\n  \n  // Check for duplicate by URL\n  if (jobUrl && existingUrl && jobUrl === existingUrl && existingStatus === 'APPLIED') {\n    isDuplicate = true;\n    duplicateReason = `Duplicate URL - already applied (job_id: ${existingId})`;\n    break;\n  }\n  \n  // Check for duplicate by company + title\n  if (company && existingCompany && company === existingCompany &&\n      jobTitle && existingTitle && jobTitle === existingTitle &&\n      existingStatus === 'APPLIED') {\n    isDuplicate = true;\n    duplicateReason = `Duplicate company+role - already applied (job_id: ${existingId})`;\n    break;\n  }\n}\n\nreturn {\n  json: {\n    ...currentJob,\n    isDuplicate,\n    duplicateReason,\n    processedAt: new Date().toISOString()\n  }\n};"
-      },
-      "id": "duplicate-check-code",
-      "name": "Check for Duplicates",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1140, 500],
-      "notesInFlow": true,
-      "notes": "Checks if same company+role or URL already has APPLIED status.\nMarks as duplicate if found."
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "not-duplicate",
-              "leftValue": "={{ $json.isDuplicate }}",
-              "rightValue": false,
-              "operator": {
-                "type": "boolean",
                 "operation": "equals"
               }
             }
@@ -214,9 +121,9 @@
       "name": "If Not Duplicate",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
-      "position": [1360, 500],
+      "position": [1580, 500],
       "notesInFlow": true,
-      "notes": "Routes non-duplicate jobs to processing.\nDuplicates go to update status as skipped."
+      "notes": "TRUE = process job\nFALSE = skip (duplicate)"
     },
     {
       "parameters": {
@@ -228,102 +135,42 @@
               "responseFormat": "text"
             }
           },
-          "timeout": 8000,
-          "redirect": {
-            "redirect": {
-              "maxRedirects": 3
-            }
-          }
+          "timeout": 8000
         }
       },
       "id": "fetch-job-page",
       "name": "Fetch Job Page",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1580, 500],
+      "position": [1800, 400],
       "notesInFlow": true,
-      "notes": "Fetches job posting page. 8s timeout.\nFails gracefully - uses manual job_description if fetch fails.",
+      "notes": "Fetches job page HTML. 8s timeout.\nContinues even if fetch fails.",
       "continueOnFail": true,
       "onError": "continueRegularOutput"
     },
     {
       "parameters": {
-        "jsCode": "// Job Description Extraction\n// Extracts text content from HTML and identifies key job details\n\nconst input = $input.item.json;\nconst config = $('CONFIG - Edit Settings Here').item.json;\n\n// Get the original job data (before HTTP request modified it)\nconst originalJob = $('Check for Duplicates').item.json;\n\nlet jobDescription = '';\nlet extractedKeywords = [];\nlet extractionMethod = '';\n\n// Check if HTTP request succeeded\nconst httpData = input.data || input.body || '';\nconst hasError = input.error || input.code === 'ERR_TIMEOUT' || input.statusCode >= 400;\n\nif (!hasError && typeof httpData === 'string' && httpData.length > 100) {\n  // Basic HTML to text conversion\n  let text = httpData\n    .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')\n    .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/&amp;/g, '&')\n    .replace(/&lt;/g, '<')\n    .replace(/&gt;/g, '>')\n    .replace(/\\s+/g, ' ')\n    .trim();\n  \n  jobDescription = text.substring(0, 5000);\n  extractionMethod = 'html_fetch';\n} else if (originalJob.job_description && originalJob.job_description.trim()) {\n  // Fallback to manually provided description\n  jobDescription = originalJob.job_description.trim();\n  extractionMethod = 'manual_input';\n} else {\n  // No description available - still proceed with basic info\n  jobDescription = `Role: ${originalJob.job_title || 'Unknown'} at ${originalJob.company || 'Unknown'}. Location: ${originalJob.location || 'Unknown'}. Source: ${originalJob.source || 'Unknown'}.`;\n  extractionMethod = 'basic_info_only';\n}\n\n// Extract keywords for cover letter customization\nconst keywordPatterns = [\n  /python/gi, /javascript/gi, /react/gi, /node\\.?js/gi,\n  /security/gi, /penetration/gi, /osint/gi, /vapt/gi,\n  /compliance/gi, /iso\\s*27001/gi, /gdpr/gi,\n  /aws/gi, /azure/gi, /cloud/gi, /docker/gi, /kubernetes/gi,\n  /machine learning/gi, /ml/gi, /ai/gi, /nlp/gi,\n  /api/gi, /rest/gi, /sql/gi, /database/gi,\n  /linux/gi, /bash/gi, /git/gi, /ci\\/cd/gi,\n  /remote/gi, /hybrid/gi, /on-?site/gi,\n  /siem/gi, /splunk/gi, /wireshark/gi, /nmap/gi,\n  /red.?team/gi, /blue.?team/gi, /soc/gi, /incident/gi\n];\n\nfor (const pattern of keywordPatterns) {\n  const matches = jobDescription.match(pattern);\n  if (matches) {\n    extractedKeywords.push(matches[0].toLowerCase());\n  }\n}\n\n// Remove duplicates\nextractedKeywords = [...new Set(extractedKeywords)];\n\nreturn {\n  json: {\n    job_id: originalJob.job_id,\n    job_title: originalJob.job_title,\n    company: originalJob.company,\n    job_url: originalJob.job_url,\n    location: originalJob.location,\n    source: originalJob.source,\n    status: originalJob.status,\n    notes: originalJob.notes,\n    processedAt: originalJob.processedAt,\n    isDuplicate: originalJob.isDuplicate,\n    jobDescription: jobDescription,\n    extractedKeywords: extractedKeywords,\n    extractionMethod: extractionMethod,\n    fetchError: hasError ? 'URL fetch failed - used fallback' : null\n  }\n};"
+        "jsCode": "// Extract job description and keywords from fetched page\nconst input = $input.item.json;\n\n// Get original job data from before HTTP request\nconst routeNode = $('Route Duplicates').item.json;\nconst config = routeNode.config;\n\nlet jobDescription = '';\nlet extractionMethod = '';\n\n// Check if HTTP request returned data\nconst httpData = input.data || input.body || '';\nconst hasError = input.error || !httpData || (typeof httpData === 'string' && httpData.length < 100);\n\nif (!hasError && typeof httpData === 'string') {\n  let text = httpData\n    .replace(/<script[^>]*>[\\\\s\\\\S]*?<\\\\/script>/gi, '')\n    .replace(/<style[^>]*>[\\\\s\\\\S]*?<\\\\/style>/gi, '')\n    .replace(/<[^>]+>/g, ' ')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/&amp;/g, '&')\n    .replace(/\\\\s+/g, ' ')\n    .trim();\n  jobDescription = text.substring(0, 5000);\n  extractionMethod = 'html_fetch';\n} else if (routeNode.job_description && routeNode.job_description.trim()) {\n  jobDescription = routeNode.job_description.trim();\n  extractionMethod = 'manual_input';\n} else {\n  jobDescription = 'Role: ' + (routeNode.job_title || 'Unknown') + ' at ' + (routeNode.company || 'Unknown') + '. Location: ' + (routeNode.location || 'Unknown');\n  extractionMethod = 'basic_info_only';\n}\n\n// Extract keywords\nconst keywordList = ['python', 'javascript', 'react', 'nodejs', 'security', 'penetration', 'osint', 'vapt', 'compliance', 'iso 27001', 'gdpr', 'aws', 'azure', 'cloud', 'docker', 'kubernetes', 'machine learning', 'ml', 'ai', 'nlp', 'api', 'sql', 'linux', 'bash', 'git', 'siem', 'splunk', 'wireshark', 'nmap', 'red team', 'blue team', 'soc', 'incident'];\n\nconst descLower = jobDescription.toLowerCase();\nconst extractedKeywords = keywordList.filter(kw => descLower.includes(kw));\n\nreturn {\n  json: {\n    job_id: routeNode.job_id,\n    job_title: routeNode.job_title,\n    company: routeNode.company,\n    job_url: routeNode.job_url,\n    location: routeNode.location,\n    source: routeNode.source,\n    processedAt: routeNode.processedAt,\n    jobDescription: jobDescription,\n    extractedKeywords: extractedKeywords,\n    extractionMethod: extractionMethod,\n    config: config\n  }\n};"
       },
       "id": "extract-job-info",
       "name": "Extract Job Info & Keywords",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1800, 500],
+      "position": [2020, 400],
       "notesInFlow": true,
-      "notes": "Parses fetched HTML or falls back to manual description.\nExtracts keywords for cover letter focus."
+      "notes": "Parses HTML or uses fallback.\nExtracts keywords for cover letter."
     },
     {
       "parameters": {
-        "jsCode": "// Cover Letter Generator\n// Creates customized cover letter based on job details and template\n\nconst job = $input.item.json;\nconst config = $('CONFIG - Edit Settings Here').item.json;\n\n// Template variables\nconst applicantName = config.APPLICANT_NAME || 'Ved Mukund Kolambikar';\nconst applicantEmail = config.APPLICANT_EMAIL || 'vedmukundkolambikar@gmail.com';\nconst applicantPhone = config.APPLICANT_PHONE || '+49 155 10820660';\nconst applicantLocation = config.APPLICANT_LOCATION || 'Offenburg, Baden-Württemberg, Germany';\n\nconst companyName = job.company || '[Company Name]';\nconst jobTitle = job.job_title || '[Position]';\nconst jobLocation = job.location || '';\nconst keywords = job.extractedKeywords || [];\n\n// Determine focus area based on keywords\nlet focusArea = 'cybersecurity';\nlet relevantSkills = 'OSINT, penetration testing, security compliance, and threat intelligence';\nlet specificExperience = 'conducting VAPT assessments, implementing ISMS frameworks, and building automated security tools';\n\nif (keywords.some(k => ['python', 'ml', 'machine learning', 'ai', 'nlp'].includes(k))) {\n  focusArea = 'AI/ML and security';\n  relevantSkills = 'Python, machine learning, NLP, and AI-driven security solutions';\n  specificExperience = 'developing AI-powered security tools, RAG-based compliance systems, and ML model deployment';\n}\nif (keywords.some(k => ['compliance', 'iso 27001', 'gdpr', 'audit'].includes(k))) {\n  focusArea = 'security compliance';\n  relevantSkills = 'ISO 27001, ISMS, compliance auditing, and risk assessment';\n  specificExperience = 'implementing ISMS frameworks, conducting compliance audits, and documentation aligned with ISO 27001';\n}\nif (keywords.some(k => ['osint', 'penetration', 'vapt', 'red team', 'red-team', 'soc', 'incident'].includes(k))) {\n  focusArea = 'offensive security';\n  relevantSkills = 'OSINT, VAPT, penetration testing, and red team operations';\n  specificExperience = 'adversarial assessments, attack surface analysis, MITRE ATT&CK mapping, and real-world threat simulation';\n}\n\n// Generate cover letter\nconst today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });\n\nconst coverLetter = `${applicantName}\n${applicantLocation}\nEmail: ${applicantEmail}\nPhone: ${applicantPhone}\n\n${today}\n\nDear Hiring Team at ${companyName},\n\nI am writing to express my strong interest in the ${jobTitle} position at ${companyName}. With my background in ${focusArea} and hands-on experience in ${relevantSkills}, I am confident in my ability to contribute meaningfully to your team.\n\nDuring my roles at Cyber Secured India and V.I.E.H Group, I developed practical expertise in ${specificExperience}. My academic foundation includes a Bachelor's in Computer Engineering from the University of Mumbai, where my thesis focused on NLP-based text summarization with CI/CD integration.\n\nKey highlights of my experience include:\n- Conducting comprehensive VAPT assessments and security audits\n- Implementing ISMS frameworks aligned with ISO 27001 standards\n- Developing AI-driven security tools using Python, ML models, and RAG architectures\n- Working with cloud platforms (AWS, Azure) and security tools (Wireshark, Nmap, Splunk)\n\nI am particularly drawn to ${companyName} because of the opportunity to apply my skills in a challenging environment while continuing to grow professionally.${jobLocation ? ' I am open to ' + (jobLocation.toLowerCase().includes('remote') ? 'remote work' : 'relocation to ' + jobLocation) + ' as required.' : ''}\n\nI would welcome the opportunity to discuss how my background aligns with your needs. Thank you for considering my application.\n\nWarm regards,\n${applicantName}`;\n\nreturn {\n  json: {\n    ...job,\n    generatedCoverLetter: coverLetter,\n    coverLetterFocus: focusArea,\n    coverLetterVersion: 'v1_' + focusArea.replace(/[^a-z]/gi, '_') + '_' + new Date().toISOString().split('T')[0]\n  }\n};"
+        "jsCode": "// Generate cover letter based on job keywords\nconst job = $input.item.json;\nconst config = job.config;\n\nconst applicantName = config.APPLICANT_NAME;\nconst applicantEmail = config.APPLICANT_EMAIL;\nconst applicantPhone = config.APPLICANT_PHONE;\nconst applicantLocation = config.APPLICANT_LOCATION;\n\nconst companyName = job.company || '[Company Name]';\nconst jobTitle = job.job_title || '[Position]';\nconst jobLocation = job.location || '';\nconst keywords = job.extractedKeywords || [];\n\n// Determine focus area\nlet focusArea = 'cybersecurity';\nlet relevantSkills = 'OSINT, penetration testing, security compliance, and threat intelligence';\nlet specificExp = 'conducting VAPT assessments, implementing ISMS frameworks, and building automated security tools';\n\nif (keywords.some(k => ['python', 'ml', 'machine learning', 'ai', 'nlp'].includes(k))) {\n  focusArea = 'AI/ML and security';\n  relevantSkills = 'Python, machine learning, NLP, and AI-driven security solutions';\n  specificExp = 'developing AI-powered security tools, RAG-based compliance systems, and ML model deployment';\n}\nif (keywords.some(k => ['compliance', 'iso 27001', 'gdpr'].includes(k))) {\n  focusArea = 'security compliance';\n  relevantSkills = 'ISO 27001, ISMS, compliance auditing, and risk assessment';\n  specificExp = 'implementing ISMS frameworks, conducting compliance audits, and ISO 27001 documentation';\n}\nif (keywords.some(k => ['osint', 'penetration', 'vapt', 'red team', 'soc', 'incident'].includes(k))) {\n  focusArea = 'offensive security';\n  relevantSkills = 'OSINT, VAPT, penetration testing, and red team operations';\n  specificExp = 'adversarial assessments, attack surface analysis, MITRE ATT&CK mapping, and threat simulation';\n}\n\nconst today = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });\n\nconst coverLetter = applicantName + '\\n' + applicantLocation + '\\nEmail: ' + applicantEmail + '\\nPhone: ' + applicantPhone + '\\n\\n' + today + '\\n\\nDear Hiring Team at ' + companyName + ',\\n\\nI am writing to express my strong interest in the ' + jobTitle + ' position at ' + companyName + '. With my background in ' + focusArea + ' and hands-on experience in ' + relevantSkills + ', I am confident in my ability to contribute meaningfully to your team.\\n\\nDuring my roles at Cyber Secured India and V.I.E.H Group, I developed practical expertise in ' + specificExp + '. My academic foundation includes a Bachelors in Computer Engineering from the University of Mumbai, where my thesis focused on NLP-based text summarization with CI/CD integration.\\n\\nKey highlights of my experience include:\\n- Conducting comprehensive VAPT assessments and security audits\\n- Implementing ISMS frameworks aligned with ISO 27001 standards\\n- Developing AI-driven security tools using Python, ML models, and RAG architectures\\n- Working with cloud platforms (AWS, Azure) and security tools (Wireshark, Nmap, Splunk)\\n\\nI am particularly drawn to ' + companyName + ' because of the opportunity to apply my skills in a challenging environment while continuing to grow professionally.' + (jobLocation ? ' I am open to ' + (jobLocation.toLowerCase().includes('remote') ? 'remote work' : 'relocation to ' + jobLocation) + ' as required.' : '') + '\\n\\nI would welcome the opportunity to discuss how my background aligns with your needs. Thank you for considering my application.\\n\\nWarm regards,\\n' + applicantName;\n\nconst coverLetterVersion = 'v1_' + focusArea.replace(/[^a-z]/gi, '_') + '_' + new Date().toISOString().split('T')[0];\n\n// Determine final status based on dry run mode\nlet finalStatus = 'MANUAL REQUIRED';\nlet finalNotes = 'Cover letter ready (' + focusArea + ' focus). Keywords: ' + keywords.join(', ') + '. SUBMIT MANUALLY at: ' + (job.job_url || 'N/A');\n\nif (config.DRY_RUN_MODE === true) {\n  finalStatus = 'DRY-RUN';\n  finalNotes = '[DRY RUN] Cover letter generated (' + focusArea + ' focus). Keywords: ' + keywords.join(', ') + '. Extraction: ' + job.extractionMethod;\n}\n\nreturn {\n  json: {\n    job_id: job.job_id,\n    job_title: job.job_title,\n    company: job.company,\n    job_url: job.job_url,\n    location: job.location,\n    source: job.source,\n    processedAt: job.processedAt,\n    extractedKeywords: keywords,\n    extractionMethod: job.extractionMethod,\n    generatedCoverLetter: coverLetter,\n    coverLetterFocus: focusArea,\n    coverLetterVersion: coverLetterVersion,\n    finalStatus: finalStatus,\n    finalNotes: finalNotes,\n    config: config\n  }\n};"
       },
       "id": "generate-cover-letter",
       "name": "Generate Cover Letter",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2020, 500],
+      "position": [2240, 400],
       "notesInFlow": true,
-      "notes": "Generates customized cover letter based on:\n- Job keywords detected\n- Company name and role\nEdit the template in code to customize."
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict"
-          },
-          "conditions": [
-            {
-              "id": "check-dry-run",
-              "leftValue": "={{ $('CONFIG - Edit Settings Here').item.json.DRY_RUN_MODE }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "equals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "check-dry-run",
-      "name": "Check Dry Run Mode",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [2240, 500],
-      "notesInFlow": true,
-      "notes": "DRY_RUN_MODE true: logs but doesn't mark for submission.\nfalse: marks as MANUAL REQUIRED."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Dry Run - Log without marking for submission\nconst job = $input.item.json;\n\nreturn {\n  json: {\n    job_id: job.job_id,\n    job_title: job.job_title,\n    company: job.company,\n    job_url: job.job_url,\n    location: job.location,\n    source: job.source,\n    status: 'DRY-RUN',\n    notes: '[DRY RUN] Cover letter generated (' + job.coverLetterFocus + ' focus). Keywords: ' + (job.extractedKeywords || []).join(', ') + '. Extraction: ' + job.extractionMethod + (job.fetchError ? '. Note: ' + job.fetchError : ''),\n    processedAt: job.processedAt,\n    coverLetterVersion: job.coverLetterVersion,\n    generatedCoverLetter: job.generatedCoverLetter,\n    extractedKeywords: job.extractedKeywords,\n    extractionMethod: job.extractionMethod\n  }\n};"
-      },
-      "id": "dry-run-log",
-      "name": "Dry Run - Prepare Log",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2460, 400],
-      "notesInFlow": true,
-      "notes": "Prepares log entry for dry run mode.\nNo submission marking occurs."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Manual Required - Log for human submission\nconst job = $input.item.json;\n\nreturn {\n  json: {\n    job_id: job.job_id,\n    job_title: job.job_title,\n    company: job.company,\n    job_url: job.job_url,\n    location: job.location,\n    source: job.source,\n    status: 'MANUAL REQUIRED',\n    notes: 'Cover letter ready (' + job.coverLetterFocus + ' focus). Keywords: ' + (job.extractedKeywords || []).join(', ') + '. SUBMIT MANUALLY at: ' + (job.job_url || 'N/A'),\n    processedAt: job.processedAt,\n    coverLetterVersion: job.coverLetterVersion,\n    generatedCoverLetter: job.generatedCoverLetter,\n    extractedKeywords: job.extractedKeywords,\n    extractionMethod: job.extractionMethod\n  }\n};"
-      },
-      "id": "manual-required-log",
-      "name": "Manual Required - Prepare Log",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [2460, 600],
-      "notesInFlow": true,
-      "notes": "Marks job as MANUAL REQUIRED.\nCover letter is ready for manual submission."
+      "notes": "Generates customized cover letter.\nAlso determines final status (DRY-RUN or MANUAL REQUIRED)."
     },
     {
       "parameters": {
@@ -342,20 +189,20 @@
           "mappingMode": "defineBelow",
           "value": {
             "job_id": "={{ $json.job_id }}",
-            "status": "={{ $json.status }}",
-            "notes": "={{ $json.notes }}"
+            "status": "={{ $json.finalStatus }}",
+            "notes": "={{ $json.finalNotes }}"
           },
           "matchingColumns": ["job_id"]
         },
         "options": {}
       },
       "id": "update-sheet-status",
-      "name": "Update Sheet - Status & Notes",
+      "name": "Update Sheet - Status",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2680, 500],
+      "position": [2460, 400],
       "notesInFlow": true,
-      "notes": "Updates Google Sheet with new status and notes.\nMatches by job_id column."
+      "notes": "Updates job status in the Jobs sheet."
     },
     {
       "parameters": {
@@ -377,51 +224,40 @@
             "job_id": "={{ $json.job_id }}",
             "company": "={{ $json.company }}",
             "job_title": "={{ $json.job_title }}",
-            "status": "={{ $json.status }}",
+            "status": "={{ $json.finalStatus }}",
             "cover_letter_version": "={{ $json.coverLetterVersion }}",
             "keywords_matched": "={{ ($json.extractedKeywords || []).join(', ') }}",
             "extraction_method": "={{ $json.extractionMethod }}",
-            "notes": "={{ $json.notes }}"
+            "notes": "={{ $json.finalNotes }}"
           },
           "matchingColumns": ["job_id"]
         },
         "options": {}
       },
       "id": "append-to-log",
-      "name": "Append to Application Log",
+      "name": "Append to Log",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2900, 500],
+      "position": [2680, 400],
       "notesInFlow": true,
-      "notes": "Appends detailed log entry to ApplicationLog sheet.\nTracks all processing attempts."
+      "notes": "Logs to ApplicationLog sheet."
     },
     {
       "parameters": {
-        "sendTo": "={{ $('CONFIG - Edit Settings Here').item.json.NOTIFICATION_EMAIL }}",
-        "subject": "={{ 'Job App: ' + $json.status + ' - ' + $json.company + ' - ' + $json.job_title }}",
+        "sendTo": "={{ $json.config.NOTIFICATION_EMAIL }}",
+        "subject": "={{ 'Job App: ' + $json.finalStatus + ' - ' + $json.company + ' - ' + $json.job_title }}",
         "emailType": "text",
-        "message": "={{ 'Job Application Status Update\\n\\n' + 'Status: ' + $json.status + '\\n' + 'Company: ' + $json.company + '\\n' + 'Position: ' + $json.job_title + '\\n' + 'Location: ' + ($json.location || 'N/A') + '\\n' + 'URL: ' + ($json.job_url || 'N/A') + '\\n\\n' + 'Notes: ' + $json.notes + '\\n\\n' + '--- Generated Cover Letter ---\\n\\n' + $json.generatedCoverLetter }}",
+        "message": "={{ 'Status: ' + $json.finalStatus + '\\nCompany: ' + $json.company + '\\nPosition: ' + $json.job_title + '\\nLocation: ' + ($json.location || 'N/A') + '\\nURL: ' + ($json.job_url || 'N/A') + '\\n\\nNotes: ' + $json.finalNotes + '\\n\\n--- Cover Letter ---\\n\\n' + $json.generatedCoverLetter }}",
         "options": {}
       },
-      "id": "send-notification-email",
-      "name": "Send Email Notification",
+      "id": "send-notification",
+      "name": "Send Notification",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [3120, 500],
+      "position": [2900, 400],
       "notesInFlow": true,
-      "notes": "Sends email with status and generated cover letter.\nRequires Gmail OAuth2 credential."
-    },
-    {
-      "parameters": {
-        "jsCode": "// Duplicate Found - Update status to SKIPPED\nconst job = $input.item.json;\n\nreturn {\n  json: {\n    job_id: job.job_id,\n    job_title: job.job_title,\n    company: job.company,\n    job_url: job.job_url,\n    location: job.location,\n    source: job.source,\n    status: 'SKIPPED',\n    notes: 'DUPLICATE: ' + job.duplicateReason,\n    processedAt: job.processedAt\n  }\n};"
-      },
-      "id": "duplicate-found-log",
-      "name": "Duplicate Found - Mark Skipped",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1580, 720],
-      "notesInFlow": true,
-      "notes": "Marks duplicate jobs as SKIPPED."
+      "notes": "Sends email notification.\nRequires Gmail OAuth2 credential.",
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -440,8 +276,8 @@
           "mappingMode": "defineBelow",
           "value": {
             "job_id": "={{ $json.job_id }}",
-            "status": "={{ $json.status }}",
-            "notes": "={{ $json.notes }}"
+            "status": "={{ $json.finalStatus }}",
+            "notes": "={{ $json.finalNotes }}"
           },
           "matchingColumns": ["job_id"]
         },
@@ -451,37 +287,24 @@
       "name": "Update Duplicate Status",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1800, 720],
+      "position": [1800, 650],
       "notesInFlow": true,
-      "notes": "Updates duplicate job status in sheet."
-    },
-    {
-      "parameters": {
-        "content": "## No NEW Jobs\nAll jobs already processed.\nAdd new rows with status 'NEW' to trigger processing.",
-        "height": 80,
-        "width": 280,
-        "color": 2
-      },
-      "id": "sticky-no-new",
-      "name": "No New Jobs Notice",
-      "type": "n8n-nodes-base.stickyNote",
-      "typeVersion": 1,
-      "position": [920, 720]
+      "notes": "Marks duplicate jobs as SKIPPED in sheet."
     }
   ],
   "connections": {
-    "Manual Trigger - Click to Test": {
+    "Manual Trigger": {
       "main": [
         [
           {
-            "node": "Read All Jobs from Sheet",
+            "node": "CONFIG",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Read All Jobs from Sheet": {
+    "CONFIG": {
       "main": [
         [
           {
@@ -496,27 +319,36 @@
       "main": [
         [
           {
-            "node": "Filter - Only NEW Status",
+            "node": "Read All Jobs from Sheet",
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
-    "Filter - Only NEW Status": {
+    "Read All Jobs from Sheet": {
       "main": [
         [
           {
-            "node": "Check for Duplicates",
+            "node": "Filter NEW & Check Duplicates",
             "type": "main",
             "index": 0
           }
-        ],
-        []
+        ]
       ]
     },
-    "Check for Duplicates": {
+    "Filter NEW & Check Duplicates": {
+      "main": [
+        [
+          {
+            "node": "Route Duplicates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Duplicates": {
       "main": [
         [
           {
@@ -538,7 +370,7 @@
         ],
         [
           {
-            "node": "Duplicate Found - Mark Skipped",
+            "node": "Update Duplicate Status",
             "type": "main",
             "index": 0
           }
@@ -571,80 +403,29 @@
       "main": [
         [
           {
-            "node": "Check Dry Run Mode",
+            "node": "Update Sheet - Status",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Check Dry Run Mode": {
+    "Update Sheet - Status": {
       "main": [
         [
           {
-            "node": "Dry Run - Prepare Log",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Manual Required - Prepare Log",
+            "node": "Append to Log",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Dry Run - Prepare Log": {
+    "Append to Log": {
       "main": [
         [
           {
-            "node": "Update Sheet - Status & Notes",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Manual Required - Prepare Log": {
-      "main": [
-        [
-          {
-            "node": "Update Sheet - Status & Notes",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Sheet - Status & Notes": {
-      "main": [
-        [
-          {
-            "node": "Append to Application Log",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Append to Application Log": {
-      "main": [
-        [
-          {
-            "node": "Send Email Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Duplicate Found - Mark Skipped": {
-      "main": [
-        [
-          {
-            "node": "Update Duplicate Status",
+            "node": "Send Notification",
             "type": "main",
             "index": 0
           }
