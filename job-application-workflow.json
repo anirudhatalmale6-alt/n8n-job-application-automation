@@ -78,7 +78,7 @@
     },
     {
       "parameters": {
-        "operation": "getAll",
+        "operation": "read",
         "documentId": {
           "__rl": true,
           "value": "YOUR_GOOGLE_SHEET_ID_HERE",
@@ -341,33 +341,11 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
+            "job_id": "={{ $json.job_id }}",
             "status": "={{ $json.status }}",
             "notes": "={{ $json.notes }}"
           },
-          "matchingColumns": ["job_id"],
-          "schema": [
-            {
-              "id": "job_id",
-              "displayName": "job_id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": false
-            },
-            {
-              "id": "notes",
-              "displayName": "notes",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": false
-            }
-          ]
+          "matchingColumns": ["job_id"]
         },
         "options": {}
       },
@@ -381,7 +359,7 @@
     },
     {
       "parameters": {
-        "operation": "append",
+        "operation": "appendOrUpdate",
         "documentId": {
           "__rl": true,
           "value": "YOUR_GOOGLE_SHEET_ID_HERE",
@@ -404,7 +382,8 @@
             "keywords_matched": "={{ ($json.extractedKeywords || []).join(', ') }}",
             "extraction_method": "={{ $json.extractionMethod }}",
             "notes": "={{ $json.notes }}"
-          }
+          },
+          "matchingColumns": ["job_id"]
         },
         "options": {}
       },
@@ -460,33 +439,11 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
+            "job_id": "={{ $json.job_id }}",
             "status": "={{ $json.status }}",
             "notes": "={{ $json.notes }}"
           },
-          "matchingColumns": ["job_id"],
-          "schema": [
-            {
-              "id": "job_id",
-              "displayName": "job_id",
-              "required": false,
-              "defaultMatch": true,
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": false
-            },
-            {
-              "id": "notes",
-              "displayName": "notes",
-              "required": false,
-              "defaultMatch": false,
-              "canBeUsedToMatch": false
-            }
-          ]
+          "matchingColumns": ["job_id"]
         },
         "options": {}
       },
